@@ -7,9 +7,9 @@
 3. Mantenha a janela do servidor aberta durante o uso.
 
 O iniciador usa Node.js instalado ou o runtime do Codex no perfil do usuário.
-Alternativamente, abra `index.html` diretamente. O endereço e o navegador
-determinam onde ficam os dados locais; use sempre o mesmo endereço para continuar.
-Não são necessários npm, instalação de dependências ou acesso à internet.
+Alternativamente, abra `public/index.html` diretamente. Os dados ficam no Supabase
+(configuração no README) e são os mesmos em qualquer navegador ou endereço.
+Não são necessários npm nem instalação de dependências, mas é preciso acesso à internet.
 
 ## O que mudou
 
@@ -69,8 +69,10 @@ Os menus agora têm grupos recolhíveis: Cadastros, Frota e Emissões.
 
 ## Limites do protótipo
 
-Os dados ficam somente no navegador. Fechar ou atualizar uma edição sem salvar
-pode perder alterações; use Salvar rascunho antes de fechar o navegador.
+Os dados ficam no Supabase, compartilhados entre todos os usuários, sem login.
+Fechar ou atualizar uma edição sem salvar pode perder alterações; use Salvar
+rascunho antes de fechar o navegador. Se duas pessoas editarem o mesmo registro,
+vale a última gravação.
 
 Não há autenticação de certificados, Receita Federal, consulta de chave na
 SEFAZ, autorização fiscal, envio de e-mails, cobrança, nem conexão com as
