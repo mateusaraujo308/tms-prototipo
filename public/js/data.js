@@ -1,6 +1,6 @@
 // Camada de dados no Supabase: carrega as tabelas antes do app e sincroniza cada save().
-const ROTA_TABLES={company:'company',drivers:'drivers',models:'models',vehicles:'vehicles',customers:'customers',cteDrafts:'cte_drafts',mdfeDrafts:'mdfe_drafts'};
-const ROTA_SCRIPTS=['app.js','company.js','emissions.js','cte.js','cte-extras.js','navigation.js','workflows.js','mdfe.js','operations.js'];
+const ROTA_TABLES={company:'company',drivers:'drivers',models:'models',vehicles:'vehicles',customers:'customers',cteDrafts:'cte_drafts',mdfeDrafts:'mdfe_drafts',users:'users'};
+const ROTA_SCRIPTS=['app.js','company.js','emissions.js','cte.js','cte-extras.js','navigation.js','workflows.js','mdfe.js','operations.js','cte-xml.js','users.js','table-actions.js'];
 const rotaSync=(()=>{
  let client,synced={},queue=Promise.resolve(),pending=0;
  const snapshot=data=>Object.fromEntries(Object.keys(ROTA_TABLES).map(k=>[k,new Map((data[k]||[]).map(x=>[x.id,JSON.stringify(x)]))]));
@@ -12,6 +12,8 @@ const rotaSync=(()=>{
   const data={};
   await Promise.all(Object.entries(ROTA_TABLES).map(async([key,table])=>{
    const {data:rows,error}=await client.from(table).select('id,data').order('created_at');
+   // Tabela ainda não criada no banco: o app abre e avisa ao tentar gravar nela.
+   if(error&&(error.code==='PGRST205'||error.code==='42P01')){console.warn(`Tabela ${table} não encontrada. Execute supabase/schema.sql.`);data[key]=[];return}
    if(error)throw Error(`Erro ao ler a tabela ${table}: ${error.message}`);
    data[key]=rows.map(r=>({...r.data,id:r.id}));
   }));
@@ -35,7 +37,8 @@ const rotaSync=(()=>{
   return queue;
  }
  window.addEventListener('beforeunload',e=>{if(pending){e.preventDefault();e.returnValue=''}});
- return {load,save};
+ async function rpc(fn,args){await queue;const {error}=await client.rpc(fn,args);if(error)throw Error(error.message)}
+ return {load,save,rpc};
 })();
 (async()=>{
  const main=document.getElementById('main');
