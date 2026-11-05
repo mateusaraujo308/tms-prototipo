@@ -1,6 +1,6 @@
 // Camada de dados no Supabase: carrega as tabelas antes do app e sincroniza cada save().
 const ROTA_TABLES={company:'company',drivers:'drivers',models:'models',vehicles:'vehicles',customers:'customers',cteDrafts:'cte_drafts',mdfeDrafts:'mdfe_drafts',users:'users'};
-const ROTA_SCRIPTS=['app.js','company.js','emissions.js','cte.js','cte-extras.js','navigation.js','workflows.js','mdfe.js','operations.js','cte-xml.js','users.js','table-actions.js'];
+const ROTA_SCRIPTS=['app.js','company.js','emissions.js','cte.js','cte-extras.js','navigation.js','workflows.js','mdfe.js','operations.js','cte-xml.js','users.js','table-actions.js','integrations.js'];
 const rotaSync=(()=>{
  let client,synced={},queue=Promise.resolve(),pending=0;
  const snapshot=data=>Object.fromEntries(Object.keys(ROTA_TABLES).map(k=>[k,new Map((data[k]||[]).map(x=>[x.id,JSON.stringify(x)]))]));
@@ -8,7 +8,8 @@ const rotaSync=(()=>{
   const cfg=window.ROTA_SUPABASE||{};
   if(!cfg.url||!cfg.anonKey)throw Error('Supabase não configurado. Preencha public/js/supabase-config.js.');
   if(!window.supabase)throw Error('Não foi possível carregar a biblioteca do Supabase. Verifique a conexão com a internet.');
-  client=window.supabase.createClient(cfg.url,cfg.anonKey,{auth:{persistSession:false}});
+  const fetchWithTimeout=async(url,options={})=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000),abort=()=>controller.abort();options.signal?.addEventListener('abort',abort,{once:true});try{return await fetch(url,{...options,signal:controller.signal})}finally{clearTimeout(timer);options.signal?.removeEventListener('abort',abort)}};
+  client=window.supabase.createClient(cfg.url,cfg.anonKey,{auth:{persistSession:false},global:{fetch:fetchWithTimeout}});
   const data={};
   await Promise.all(Object.entries(ROTA_TABLES).map(async([key,table])=>{
    const {data:rows,error}=await client.from(table).select('id,data').order('created_at');
@@ -44,6 +45,6 @@ const rotaSync=(()=>{
  const main=document.getElementById('main');
  main.innerHTML='<p class="loading-state">Carregando dados…</p>';
  try{window.ROTA_DATA=await rotaSync.load()}
- catch(e){main.innerHTML=`<section class="panel"><div class="panel-body"><h2>Não foi possível conectar ao banco de dados</h2><p>${String(e.message).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}</p><button class="button" onclick="location.reload()">Tentar novamente</button></div></section>`;return}
+ catch(e){window.ROTA_READONLY_OFFLINE=true;window.ROTA_DB_CONNECTION_ERROR='A conexão com o banco de dados falhou.';console.error('Falha ao carregar dados do Supabase:',e);window.ROTA_DATA=Object.fromEntries(Object.keys(ROTA_TABLES).map(k=>[k,[]]));main.innerHTML='<section class="panel"><div class="panel-body"><h2>Banco indisponível — modo somente leitura</h2><p>Não foi possível carregar os dados. Verifique a conexão e tente novamente.</p><p>A central de integrações permanece disponível; cadastros e rascunhos não serão salvos.</p><button class="button" onclick="location.reload()">Tentar novamente</button></div></section>'}
  for(const src of ROTA_SCRIPTS){const s=document.createElement('script');s.src='js/'+src;s.async=false;document.body.append(s)}
 })();

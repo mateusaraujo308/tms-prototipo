@@ -144,7 +144,7 @@ async function generateCteXml(x){
  let result;try{result=await buildCteXml(x)}catch(e){return toast(e.message)}
  if(result.issues)return popup('Pendências para gerar o XML',`<p>Corrija os itens abaixo para gerar o XML no layout do CT-e 4.00:</p>${cteIssuesHtml(result.issues)}<div class="modal-actions"><button class="button" id="xml-issues-ok">Entendi</button></div>`,()=>{$('#xml-issues-ok').onclick=()=>workflowDialog.close()});
  downloadFile(`CTe${result.key}.xml`,result.xml,'application/xml');
- x.cteKey=result.key;x.xmlGeneratedAt=new Date().toISOString();if(save())toast('XML gerado em homologação, sem assinatura digital.');
+ x.cteKey=result.key;x.xmlGeneratedAt=new Date().toISOString();if(save())toast('XML preliminar gerado (tpAmb=2). Não validado no XSD vigente, sem assinatura e não transmitido.');
  if(route==='cte'&&!document.body.classList.contains('operation-open'))emissionList();
 }
 const xmlPrevAction=operationAction;
@@ -157,17 +157,18 @@ persistDraft=function(reviewed){if(draft&&route==='cte'){draft.createdAt??=new D
 const fmtDate=d=>d?new Date(d).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
 function cteTimelineSteps(x){
  const events=x.simulationEvents||[],ev=a=>events.filter(e=>e.action===a).pop();
- const reviewed=x.status&&x.status!=='Rascunho',issued=['Emissão simulada','Cancelamento simulado'].includes(x.status),cancelled=x.status==='Cancelamento simulado';
+ const reviewed=x.status&&x.status!=='Rascunho',authorized=x.sefazAuthorization?.status==='authorized'&&Boolean(x.sefazAuthorization?.protocol),cancelled=x.sefazAuthorization?.status==='cancelled'&&Boolean(x.sefazAuthorization?.protocol);
  const xmlCurrent=x.xmlGeneratedAt&&(!x.updatedAt||x.xmlGeneratedAt>=x.updatedAt);
  const mdfe=(db.mdfeDrafts||[]).find(m=>(m.linkedCtes||[]).includes(x.id)||(m.documents||[]).some(d=>d.cteId===x.id));
  const steps=[
   {label:'Rascunho criado',done:true,date:x.createdAt||x.issuedAt},
   {label:'Revisão concluída',done:reviewed,date:x.reviewedAt,todo:'Conclua na aba Revisão'},
   {label:'XML gerado',done:!!xmlCurrent,date:xmlCurrent&&x.xmlGeneratedAt,todo:x.xmlGeneratedAt?'Dados alterados: gere o XML novamente':'Menu ⋯ › Baixar XML na lista'},
-  {label:'Autorizado pela SEFAZ',done:issued,date:ev('emit')?.date,todo:'Requer certificado A1 e envio à SEFAZ'},
-  {label:'Incluído em MDF-e',done:!!mdfe,date:mdfe&&mdfe.updatedAt,note:mdfe?mdfe.reference:'',todo:'Vincule em Emissão de MDF-e'}
+  {label:'Transmissão e autorização SEFAZ',done:authorized,date:authorized?x.sefazAuthorization.authorizedAt:null,todo:'Pendente: requer backend fiscal, assinatura digital e retorno autorizador.'},
+  {label:'Vinculado ao rascunho MDF-e',done:!!mdfe,date:mdfe&&mdfe.updatedAt,note:mdfe?mdfe.reference:'',todo:'Vincule em Emissão de MDF-e; vínculo não equivale a autorização.'}
  ];
- if(cancelled){steps.forEach(s=>{if(!s.done)s.skipped=true});steps.push({label:'Cancelado',done:true,error:true,date:ev('cancel')?.date,note:ev('cancel')?.reason})}
+ if(ev('emit')||ev('cancel'))steps.push({label:'Simulação local',done:true,date:(ev('cancel')||ev('emit')).date,note:'Nenhuma chamada à SEFAZ foi realizada.'});
+ if(cancelled){steps.push({label:'Cancelado na SEFAZ',done:true,error:true,date:x.sefazAuthorization.cancelledAt,note:x.sefazAuthorization.protocol})}
  const current=steps.findIndex(s=>!s.done&&!s.skipped);if(current>=0)steps[current].current=true;
  return steps;
 }
@@ -180,4 +181,4 @@ cteRender=function(){xmlPrevRender();const ctx=document.querySelector('.cte-cont
 
 // Pendências do XML também aparecem na aba Revisão.
 const xmlPrevReview=cteReview;
-cteReview=function(){xmlPrevReview();const issues=cteXmlIssues(draft);$('#cte-finish').insertAdjacentHTML('beforebegin',`<div class="review-box"><h3>XML no layout SEFAZ (CT-e 4.00)</h3>${issues.length?`<p class="section-help">Para gerar o XML, ainda falta:</p>${cteIssuesHtml(issues)}`:'<p class="badge">Pronto para gerar o XML</p>'}<p class="section-help">Os municípios são conferidos no IBGE na hora de gerar. Depois de concluir a revisão, baixe o XML pelo menu ⋯ da lista. O arquivo sai em homologação e sem assinatura digital.</p></div>`)};
+cteReview=function(){xmlPrevReview();const issues=cteXmlIssues(draft);$('#cte-finish').insertAdjacentHTML('beforebegin',`<div class="review-box"><h3>XML preliminar CT-e 4.00</h3>${issues.length?`<p class="section-help">Para gerar o arquivo, ainda falta:</p>${cteIssuesHtml(issues)}`:'<p class="badge">Dados mínimos informados</p>'}<p class="section-help">Os municípios são conferidos no IBGE na hora de gerar. O arquivo sai com tpAmb=2, sem validação nos XSDs/NTs vigentes, sem assinatura digital e sem transmissão à SEFAZ.</p></div>`)};

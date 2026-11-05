@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.key
+*.pem
+*.p7b
+*.p7c
